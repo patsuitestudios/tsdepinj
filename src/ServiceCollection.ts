@@ -1,6 +1,18 @@
+type ClassDependency = {
+    name: 'class',
+    classType: Constructor<unknown>
+}
+
+type ValueDependency = {
+    name: 'value',
+    value: unknown;
+}
+
+type Dependency = ClassDependency | ValueDependency;
+
 type Registration = {
     classType: Constructor<unknown>;
-    dependencyClassTypes: Constructor<unknown>[]
+    dependencies: Dependency[]
 }
 
 export class ServiceCollection {
@@ -12,12 +24,25 @@ export class ServiceCollection {
     }): ServiceCollection;
 
     addSingleton<T extends Constructor<unknown>>(classType: T, {params = []}: {
-        params?: Constructor<unknown>[]
+        params?: unknown[]
     } = {}): ServiceCollection {
-        this.#registrations.push({
-            classType,
-            dependencyClassTypes: [...params]
-        });
+        const dependencies: Dependency[] = [];
+        for (const param of params) {
+            const isConstructor = typeof param === 'function'; // TODO: better constructor
+            if (isConstructor) {
+                dependencies.push({
+                    name: 'class',
+                    classType: param as Constructor<unknown>
+                })
+            } else {
+                dependencies.push({
+                    name: 'value',
+                    value: param
+                })
+            }
+        }
+
+        this.#registrations.push({classType, dependencies});
         return this;
     }
 
@@ -47,7 +72,15 @@ export class ServiceProvider {
             throw new Error(`No registration found for type ${constructor.name}`)
         }
 
-        const dependencies = registration.dependencyClassTypes.map(type => this.getService(type));
+        const dependencies: unknown[] = [];
+        for (const dependency of registration.dependencies) {
+            if (dependency.name === 'value') {
+                dependencies.push(dependency.value)
+            } else {
+                dependencies.push(this.getService(dependency.classType));
+            }
+        }
+
         const newInstance = new constructor(...dependencies);
         this.#instances.set(constructor, newInstance);
         return newInstance as T;
@@ -55,7 +88,7 @@ export class ServiceProvider {
 }
 
 export type Constructors<T extends any[]> = {
-    [K in keyof T]: Constructor<T[K]>;
+    [K in keyof T]: T[K] extends object ? Constructor<T[K]> : T[K];
 };
 
 export type Constructor<T> = new (...args: any[]) => T;

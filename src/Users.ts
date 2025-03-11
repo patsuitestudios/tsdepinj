@@ -2,19 +2,21 @@ import {randomUUID} from 'node:crypto';
 import {IDatabase} from "./Database";
 
 export interface IUsers {
-    getUser: () => object;
+    getUsers: () => object[];
 }
 
 export class Users implements IUsers {
-    private database: IDatabase;
+    #database: IDatabase;
     #instanceId: string
+    #fetchCount: number
 
-    constructor(database: IDatabase) {
-        this.database = database;
+    constructor(database: IDatabase, fetchCount: number) {
+        this.#database = database;
         this.#instanceId = `users-${randomUUID()}`;
+        this.#fetchCount = fetchCount;
     }
 
-    getUser = (): object => {
-        return this.database.fetchRecord(this.#instanceId);
+    getUsers = (): object[] => {
+        return [...Array(this.#fetchCount)].map(() => this.#database.fetchRecord(this.#instanceId));
     }
 }
